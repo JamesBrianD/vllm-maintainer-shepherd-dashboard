@@ -10,6 +10,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+    <script>
+      /* Set the theme before the first paint; app.js keeps it up to date afterwards. */
+      try {
+        let theme = JSON.parse(localStorage.getItem("pingboard.theme")) || "system";
+        if (!/^(light|dark)(-[a-z-]+)?$/.test(theme)) theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme.split("-")[0];
+      } catch {}
+    </script>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>

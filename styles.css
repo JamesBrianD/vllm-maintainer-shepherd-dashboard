@@ -13,6 +13,7 @@
 
   --accent: #0e8a60;
   --accent-soft: rgba(14, 138, 96, 0.11);
+  --on-accent: #fff;
   --good: #1a7f37;
   --bad: #cf222e;
   --warn: #9a6200;
@@ -28,29 +29,142 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f0c;
-    --panel: #131814;
-    --panel-soft: #1b211c;
-    --line: #262e28;
-    --line-strong: #3a453c;
-    --text: #e7efe7;
-    --muted: #a3b0a4;
-    --quiet: #78857c;
+/* Themes follow GitHub's appearance settings. The light palette above is the base;
+   index.html / app.js set data-theme on <html>, resolving "system" to light or dark. */
+:root[data-theme^="dark"] {
+  --bg: #0b0f0c;
+  --panel: #131814;
+  --panel-soft: #1b211c;
+  --line: #262e28;
+  --line-strong: #3a453c;
+  --text: #e7efe7;
+  --muted: #a3b0a4;
+  --quiet: #78857c;
 
-    --accent: #34d399;
-    --accent-soft: rgba(52, 211, 153, 0.11);
-    --good: #3fb950;
-    --bad: #f85149;
-    --warn: #e3a03a;
-    --todo: #b392f0;
-    --running: #58a6ff;
-    --merged: #a371f7;
-    --follow: #f28dc4;
-    --focus: #93c5fd;
-    --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  }
+  --accent: #34d399;
+  --accent-soft: rgba(52, 211, 153, 0.11);
+  --on-accent: #06140e;
+  --good: #3fb950;
+  --bad: #f85149;
+  --warn: #e3a03a;
+  --todo: #b392f0;
+  --running: #58a6ff;
+  --merged: #a371f7;
+  --follow: #f28dc4;
+  --focus: #93c5fd;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Soft dark, after GitHub's "Dark dimmed". */
+:root[data-theme="dark-dimmed"] {
+  --bg: #1c2128;
+  --panel: #22272e;
+  --panel-soft: #2d333b;
+  --line: #373e47;
+  --line-strong: #444c56;
+  --text: #adbac7;
+  --muted: #909dab;
+  --quiet: #768390;
+
+  --accent: #57ab5a;
+  --accent-soft: rgba(87, 171, 90, 0.15);
+  --on-accent: #1c2128;
+  --good: #57ab5a;
+  --bad: #e5534b;
+  --warn: #c69026;
+  --todo: #b083f0;
+  --running: #539bf5;
+  --merged: #986ee2;
+  --follow: #e275ad;
+  --focus: #6cb6ff;
+  --shadow: 0 16px 40px rgba(28, 33, 40, 0.8);
+}
+
+:root[data-theme="dark-high-contrast"] {
+  --bg: #010409;
+  --panel: #0a0c10;
+  --panel-soft: #161b22;
+  --line: #7a828e;
+  --line-strong: #9ea7b3;
+  --text: #f0f3f6;
+  --muted: #d1d7e0;
+  --quiet: #b7bdc8;
+
+  --accent: #26cd4d;
+  --accent-soft: rgba(38, 205, 77, 0.18);
+  --on-accent: #010409;
+  --good: #26cd4d;
+  --bad: #ff6a69;
+  --warn: #f0b72f;
+  --todo: #cb9eff;
+  --running: #71b7ff;
+  --merged: #cb9eff;
+  --follow: #ff9bce;
+  --focus: #409eff;
+}
+
+/* Protanopia & deuteranopia: success is blue, failure is orange. */
+:root[data-theme="dark-colorblind"] {
+  --accent: #58a6ff;
+  --accent-soft: rgba(88, 166, 255, 0.13);
+  --good: #58a6ff;
+  --bad: #f0883e;
+  --running: #d2a8ff;
+  --merged: #a371f7;
+  --focus: #79c0ff;
+}
+
+/* Tritanopia: success is blue, failure stays red. */
+:root[data-theme="dark-tritanopia"] {
+  --accent: #58a6ff;
+  --accent-soft: rgba(88, 166, 255, 0.13);
+  --good: #58a6ff;
+  --bad: #f85149;
+  --warn: #f0883e;
+  --running: #d2a8ff;
+  --focus: #79c0ff;
+}
+
+:root[data-theme="light-high-contrast"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-soft: #e7ecf0;
+  --line: #20252c;
+  --line-strong: #20252c;
+  --text: #0e1116;
+  --muted: #0e1116;
+  --quiet: #3d434b;
+
+  --accent: #055d20;
+  --accent-soft: rgba(5, 93, 32, 0.12);
+  --good: #055d20;
+  --bad: #a0111f;
+  --warn: #744500;
+  --todo: #512598;
+  --running: #0349b4;
+  --merged: #622cbc;
+  --follow: #8a0f53;
+  --focus: #0349b4;
+}
+
+:root[data-theme="light-colorblind"] {
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.1);
+  --good: #0969da;
+  --bad: #bc4c00;
+  --running: #8250df;
+  --merged: #6639ba;
+  --focus: #0550ae;
+}
+
+:root[data-theme="light-tritanopia"] {
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.1);
+  --good: #0969da;
+  --bad: #cf222e;
+  --warn: #bc4c00;
+  --running: #8250df;
+  --focus: #0550ae;
 }
 
 /* ── base ─────────────────────────────────────────────────────────────── */
@@ -99,11 +213,10 @@ code { font-family: var(--font-mono); font-size: 0.92em; padding: 1px 4px; backg
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); background: var(--panel-soft); }
 .btn:disabled { opacity: 0.45; cursor: default; }
-.btn.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.btn.primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
 .btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 86%, #000); }
 .btn.danger { border-color: var(--bad); color: var(--bad); }
 .btn.big { padding: 8px 16px; font-size: 14px; }
-@media (prefers-color-scheme: dark) { .btn.primary { color: #06140e; } }
 
 .link-btn {
   padding: 2px 4px;
@@ -186,6 +299,7 @@ input[type="text"], input[type="search"], input[type="password"], select {
 
 .filter { width: 190px; padding: 4px 9px; }
 .top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.theme-select { width: auto; padding-right: 6px; }
 .sync { font-size: 12px; color: var(--quiet); white-space: nowrap; }
 .sync.busy { color: var(--accent); }
 .sync.warn { color: var(--warn); }

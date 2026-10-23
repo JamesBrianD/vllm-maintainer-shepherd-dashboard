@@ -6,6 +6,30 @@ One board for the pull requests you are shepherding through CI. Pin the PRs you 
 
 It is a static page that talks to the GitHub API from your browser: no server, no build step, no dependencies. It is tuned for [vllm-project/vllm](https://github.com/vllm-project/vllm) and works for any repository.
 
+## What this fork adds
+
+This is a fork of [mgoin/pingboard](https://github.com/mgoin/pingboard), hosted at **https://shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard/**. The rest of this README describes features shared with upstream; this section lists what the fork adds on top.
+
+### Theme picker
+
+Upstream only follows the operating system's light/dark setting. This fork puts a theme picker in the top-right corner (next to **Refresh**) with the themes of [GitHub's appearance settings](https://github.com/settings/appearance):
+
+| Group | Themes |
+| --- | --- |
+| — | **Sync with system** (default, same as upstream) |
+| Light | Light default · Light high contrast · Light Protanopia & Deuteranopia · Light Tritanopia |
+| Dark | Dark default · **Dark dimmed (soft dark)** · Dark high contrast · Dark Protanopia & Deuteranopia · Dark Tritanopia |
+
+- *Light default* and *Dark default* keep upstream's palette; the other themes take their colors from GitHub's matching themes. The colorblind themes move success to blue and failure to orange (or keep red for tritanopia), so CI states stay distinguishable.
+- The choice is stored per browser under `pingboard.theme` in `localStorage` — not per GitHub login, so the sign-in page uses it too — and is synced across open tabs.
+- A small inline script in `index.html` applies the theme before the first paint, so a reload never flashes the light theme.
+- The saved board format is unchanged; boards from upstream load as they are.
+
+### Chinese documentation
+
+- [`docs/guide_zh.md`](docs/guide_zh.md) — a guide in Chinese: what Pingboard is, how to use it, how it works (PR fetching, CI classification, related/unrelated failure detection, refresh and rate limits), deploying a fork to GitHub Pages, and where the board data lives.
+- [`docs/CHANGELOG_zh.md`](docs/CHANGELOG_zh.md) — every change made in this fork since upstream commit `8d08666`, with dates.
+
 ## The board
 
 Each row is one pull request with a status and, where there is an obvious next step, a button for it.

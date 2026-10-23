@@ -19,6 +19,7 @@
 
 const TOKEN_KEY = "pingboard.githubToken";
 const SESSION_KEY = "pingboard.sessionToken";
+const THEME_KEY = "pingboard.theme";      // per browser, not per login: the sign-in page uses it too
 const API_ROOT = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 
@@ -46,6 +47,21 @@ const REPO_PROFILES = {
     mergeMethod: "squash"
   }
 };
+/* The themes of github.com/settings/appearance; "system" follows the OS light/dark setting. */
+const THEMES = [
+  { id: "system", label: "Sync with system" },
+  { id: "light", label: "Light default" },
+  { id: "light-high-contrast", label: "Light high contrast" },
+  { id: "light-colorblind", label: "Light Protanopia & Deuteranopia" },
+  { id: "light-tritanopia", label: "Light Tritanopia" },
+  { id: "dark", label: "Dark default" },
+  { id: "dark-dimmed", label: "Dark dimmed (soft dark)" },
+  { id: "dark-high-contrast", label: "Dark high contrast" },
+  { id: "dark-colorblind", label: "Dark Protanopia & Deuteranopia" },
+  { id: "dark-tritanopia", label: "Dark Tritanopia" }
+];
+const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+
 const GENERIC_PROFILE = { ciPrefix: null, mainPipeline: null, ciCommands: null, quickLabels: [], mergeMethod: "squash" };
 
 function profileFor(repo) {
@@ -213,6 +229,7 @@ function cleanBoard(raw) {
 
 /* Another tab saved the board: adopt it, so this tab never writes a stale copy back over it. */
 function syncFromStorage(event) {
+  if (event.key === THEME_KEY) applyTheme();
   if (!state.user || event.storageArea !== localStorage) return;
   if (event.key === scopedKey("board")) {
     let board = null;
@@ -311,6 +328,26 @@ function persistBoard() {
 
 function persistPrefs() {
   store.set(scopedKey("prefs"), state.prefs);
+}
+
+function currentTheme() {
+  const theme = store.get(THEME_KEY, "system");
+  return THEMES.some((item) => item.id === theme) ? theme : "system";
+}
+
+/* Mirrors the inline script in index.html, which does this before the first paint. */
+function applyTheme() {
+  let theme = currentTheme();
+  if (theme === "system") theme = darkQuery.matches ? "dark" : "light";
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme.split("-")[0];
+  const select = document.querySelector("#theme");
+  if (select) select.value = currentTheme();
+}
+
+function setTheme(theme) {
+  store.set(THEME_KEY, theme);
+  applyTheme();
 }
 
 /* ── 3. github api ─────────────────────────────────────────────────────── */
@@ -1345,6 +1382,17 @@ function buildShell() {
         el("span", { class: "sync", id: "sync" }),
         el("button", { class: "btn primary", onclick: () => openAdd(), text: "+ Add PRs" }),
         el("button", { class: "btn", title: "Refresh everything now", onclick: refreshAll, text: "Refresh" }),
+        el("select", {
+          class: "btn theme-select",
+          id: "theme",
+          title: "Theme",
+          "aria-label": "Theme",
+          onchange: (event) => setTheme(event.target.value)
+        }, [
+          themeOption(THEMES[0]),
+          ...["light", "dark"].map((mode) => el("optgroup", { label: mode === "light" ? "Light" : "Dark" },
+            THEMES.filter((item) => item.id.startsWith(mode)).map(themeOption)))
+        ]),
         el("button", { class: "btn", id: "me", title: "Settings", onclick: openSettings })
       ])
     ]),
@@ -1353,6 +1401,10 @@ function buildShell() {
     el("div", { class: "toasts", id: "toasts" }),
     el("div", { id: "modal" })
   ]);
+}
+
+function themeOption(item) {
+  return el("option", { value: item.id, selected: item.id === currentTheme(), text: item.label });
 }
 
 /* List on the left, detail on the right, with a draggable divider between them. */
@@ -2463,6 +2515,8 @@ document.addEventListener("selectionchange", () => {
 });
 window.addEventListener("resize", () => applyBoardWidth());
 window.addEventListener("storage", syncFromStorage);
+darkQuery.addEventListener("change", applyTheme);
+applyTheme();
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) tick();

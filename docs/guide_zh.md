@@ -51,6 +51,13 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
 
 4. **整理看板**：可以拖动行来排序或分组，也可以拖动分隔条调整列表宽度。PR 自你上次查看后有变化时会显示蓝点。**Follow** 某个作者后，他们的名字会高亮显示，Add PRs 里也会多出一个 Following 列表。
 
+   **切换主题**：右上角 Refresh 按钮右边有一个主题下拉框，选项参照 GitHub 的 Appearance 设置：
+   - Sync with system：默认值，跟随系统深浅色；
+   - Light 组：Light default、Light high contrast、Light Protanopia & Deuteranopia、Light Tritanopia；
+   - Dark 组：Dark default、**Dark dimmed（soft dark）**、Dark high contrast、Dark Protanopia & Deuteranopia、Dark Tritanopia。
+
+   选择结果保存在当前浏览器的 `localStorage`（key 为 `pingboard.theme`），不区分 GitHub 账号，登录页也会使用；多个标签页之间会自动同步。
+
 5. **执行操作**：
    - 评论命令（`/ci run`、`/ci retry`、`/ci cancel`）和更新分支会先等 3 秒，期间可以点 Undo 撤销；
    - Approve 和 Merge 需要二次确认；
@@ -119,7 +126,7 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
 
 ## 五、部署到自己的 GitHub Pages
 
-本仓库 fork 自 mgoin，现在的远程仓库是 `shen-shanshan/vllm-maintainer-shepherd-dashboard`。代码不用改：仓库里已经有部署用的 workflow（`.github/workflows/pages.yml`），页面里引用的资源也都是相对路径（`./app.js`、`./styles.css`），放在子路径下也能正常加载。你只需要在 GitHub 网页上做几步设置。
+本仓库 fork 自 [mgoin/pingboard](https://github.com/mgoin/pingboard)，现在的远程仓库是 `shen-shanshan/vllm-maintainer-shepherd-dashboard`。代码不用改：仓库里已经有部署用的 workflow（`.github/workflows/pages.yml`），页面里引用的资源也都是相对路径（`./app.js`、`./styles.css`），放在子路径下也能正常加载。你只需要在 GitHub 网页上做几步设置。
 
 ### 部署步骤
 
@@ -157,11 +164,9 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
 - **同步上游更新**：在仓库首页点 **Sync fork**，或者在本地执行：
 
   ```bash
-  git remote add upstream https://github.com/mgoin/vllm-maintainer-shepherd-dashboard.git
+  git remote add upstream https://github.com/mgoin/pingboard.git
   git pull upstream main && git push origin main
   ```
-
-  上游地址是按项目名推测的，如果 mgoin 那边的仓库名不一样，换成实际地址就行。
 
 ---
 
