@@ -192,6 +192,7 @@ code { font-family: var(--font-mono); font-size: 0.92em; padding: 1px 4px; backg
 .t-warn { color: var(--warn); }
 .t-todo { color: var(--todo); }
 .t-running { color: var(--running); }
+.t-quiet { color: var(--quiet); }
 .spacer { flex: 1; }
 
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
@@ -246,7 +247,7 @@ code { font-family: var(--font-mono); font-size: 0.92em; padding: 1px 4px; backg
 .icon-btn:hover { color: var(--bad); background: var(--panel-soft); }
 .icon-btn:focus-visible, .row.cursor .icon-btn { opacity: 1; }
 
-input[type="text"], input[type="search"], input[type="password"], select {
+input[type="text"], input[type="search"], input[type="password"], select, textarea {
   font: inherit;
   color: var(--text);
   background: var(--panel);
@@ -488,6 +489,19 @@ a.num:hover { text-decoration: underline; color: var(--text); }
   .detail-body { grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); align-items: start; }
 }
 
+/* AI review panel */
+.review-source { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.review-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.review-verdict { font-weight: 600; }
+.review-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 /* ── overlays ─────────────────────────────────────────────────────────── */
 
 .undo-bar, .toasts { position: fixed; left: 50%; transform: translateX(-50%); z-index: 50; }
@@ -528,6 +542,42 @@ a.num:hover { text-decoration: underline; color: var(--text); }
 .choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sources-input { width: 100%; font-family: var(--font-mono); font-size: 12px; resize: vertical; }
+
+/* Full AI review report: Markdown rendered by GitHub */
+.modal.report { width: min(1100px, 96vw); height: 90vh; max-height: none; overflow: hidden; }
+.report-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.report-facts { display: grid; gap: 2px; justify-items: end; }
+.report-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 4px 0; line-height: 1.6; border-block: 1px solid var(--line); }
+.report-body > :first-child { margin-top: 12px; }
+.report-body h1, .report-body h2, .report-body h3, .report-body h4 { margin: 1.4em 0 0.5em; line-height: 1.3; }
+.report-body h1 { font-size: 21px; }
+.report-body h2 { font-size: 18px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+.report-body h3 { font-size: 15.5px; }
+.report-body h4 { font-size: 14px; }
+.report-body p, .report-body ul, .report-body ol, .report-body blockquote, .report-body pre,
+.report-body table, .report-body markdown-accessiblity-table { margin: 0 0 12px; }
+.report-body ul, .report-body ol { padding-left: 24px; }
+.report-body li + li { margin-top: 3px; }
+.report-body a { color: var(--running); }
+.report-body hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+.report-body blockquote { padding: 2px 12px; color: var(--muted); border-left: 3px solid var(--line-strong); }
+.report-body markdown-accessiblity-table { display: block; overflow-x: auto; }
+.report-body table { border-collapse: collapse; font-size: 13px; }
+.report-body th, .report-body td { padding: 5px 10px; border: 1px solid var(--line); vertical-align: top; text-align: left; }
+.report-body th { background: var(--panel-soft); font-weight: 600; }
+.report-body pre { padding: 10px 12px; overflow-x: auto; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.5; background: var(--panel-soft); border-radius: var(--radius); }
+.report-body pre code { padding: 0; background: none; font-size: inherit; }
+.report-body img { max-width: 100%; }
+.report-body .mermaid-figure { margin: 0 0 12px; overflow-x: auto; text-align: center; }
+.report-body .mermaid-figure svg { max-width: 100%; height: auto; }
+/* GitHub's syntax-highlighting classes, mapped onto the theme */
+.report-body .pl-c { color: var(--quiet); font-style: italic; }
+.report-body .pl-k, .report-body .pl-smi { color: var(--bad); }
+.report-body .pl-s, .report-body .pl-pds, .report-body .pl-sr { color: var(--running); }
+.report-body .pl-en, .report-body .pl-e, .report-body .pl-ent { color: var(--merged); }
+.report-body .pl-c1, .report-body .pl-v, .report-body .pl-mi1 { color: var(--accent); }
+.report-body .pl-md { color: var(--bad); }
 
 .picker-input { width: 100%; padding: 9px 11px; font-size: 15px; }
 .picker-list { min-height: 140px; max-height: 50vh; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); }

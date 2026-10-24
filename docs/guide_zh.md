@@ -8,6 +8,7 @@
 - [四、测试](#四测试)
 - [五、部署到自己的 GitHub Pages](#五部署到自己的-github-pages)
 - [六、重新部署会丢失数据吗](#六重新部署会丢失数据吗)
+- [七、AI Review 报告](#七ai-review-报告)
 
 ---
 
@@ -64,6 +65,7 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
    - Label 点了立即生效；
    - 所有操作都用你的 Token、以你的身份执行；
    - 按 `?` 可以查看全部快捷键。
+   - 按 `i` 打开当前 PR 的 AI Review 完整报告，见[第七节](#七ai-review-报告)。
 
 6. **备份**：看板数据（钉住的 PR、分组、偏好设置）按 GitHub 登录名存在 `localStorage` 里。Settings 里有导出和导入文件的功能，可以备份或者换浏览器迁移。
 
@@ -179,7 +181,7 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
 | 数据 | 存储位置 | 重新部署后 |
 |---|---|---|
 | 钉住的 PR、分组、排序、已读标记 | 浏览器 `localStorage`，key 为 `pingboard.v3.<你的登录名>.board` | 保留 |
-| 偏好设置（刷新间隔、Follow 列表等） | `localStorage`，key 为 `pingboard.v3.<登录名>.prefs` | 保留 |
+| 偏好设置（刷新间隔、Follow 列表、AI Review 报告来源等） | `localStorage`，key 为 `pingboard.v3.<登录名>.prefs` | 保留 |
 | Token | `sessionStorage`，勾选 “Keep token” 时改存 `localStorage` | 保留 |
 | PR 的 CI 状态、评论等 | 不保存，每次打开页面从 GitHub API 实时拉取 | 不受影响 |
 
@@ -194,3 +196,75 @@ Pingboard 是给 vLLM maintainer 用的 PR“看护”看板。
 ### 建议
 
 时不时在 Settings 里点一下 **Export to file** 备份看板。万一出了上面这些情况，用 **Import from file** 就能恢复。
+
+---
+
+## 七、AI Review 报告
+
+PR 详情页里有一个 **AI Review** 面板，用来展示你在本地用 skill 生成的 review 报告。Pingboard 是纯静态页面，不能调用 agent，所以分成两步：报告在本地生成并推送到 GitHub，dashboard 再去读取。
+
+### 工作流程
+
+1. 在本地用 Claude Code 运行 [`vllm-rocm-pr-review`](https://github.com/shen-shanshan/vllm-dev-skills/tree/master/skills/vllm-rocm-pr-review) skill，例如“review vllm PR 52921”。报告会写到 `skills/vllm-rocm-pr-review/outputs/pr-52921-review.md`。
+2. 在 `vllm-dev-skills` 仓库里提交并推送这份报告：
+
+   ```bash
+   cd /home/shashen/vllm/vllm-dev-skills
+   git add skills/vllm-rocm-pr-review/outputs/pr-52921-review.md
+   git commit -m "Add ROCm review for vllm PR #52921" && git push
+   ```
+
+3. 在 Pingboard 里点开这个 PR，AI Review 面板就会显示报告。dashboard 每 10 分钟重新列一次报告目录；想马上看到，点顶栏的 **Refresh**。
+
+### 面板上显示什么
+
+| 情况 | 显示 |
+|---|---|
+| 有报告 | 结论徽章（🔴 Block / ⚠️ Needs work / ✅ LGTM）、review 时间、报告第 1 节的总结，以及 **View full report**、**Open on GitHub ↗** 两个按钮 |
+| PR 在 review 之后又推了新 commit | 黄色提示：“PR has new commits since this review (reviewed `abc1234`, now `def5678`)” |
+| 报告 review 的就是最新 commit | 绿色提示：“Covers the latest commit.” |
+| 旧报告，没有 front matter | 结论从报告的“结论 (Verdict)”一节识别，并提示 “Reviewed commit unknown” |
+| 没有报告 | “No AI review yet”，附报告仓库的链接 |
+| 读取失败 | 错误信息和 Retry 按钮 |
+
+### 完整报告
+
+点 **View full report** 或按 `i`，会弹出一个大窗口显示完整报告：
+
+- 报告由 GitHub 的 `/markdown` 接口渲染，表格、代码块、`#1234` 这类 PR 链接的效果都和 GitHub 上一致；插入页面前还会再过滤一遍不安全的内容。
+- Mermaid 图由 mermaid.js 绘制。它只在报告里有图时才从 CDN（jsDelivr）加载，加载失败时图以源码形式显示。
+- 弹窗不会随看板刷新而重建，阅读时滚动位置不会丢。
+
+### 报告的 front matter
+
+skill 现在会在报告开头输出一段元数据，dashboard 靠它判断结论和报告是否过期：
+
+```yaml
+---
+pr: 52921
+repo: vllm-project/vllm
+head_sha: <review 时 PR head 的完整 SHA>
+verdict: needs-work        # block | needs-work | lgtm
+reviewed_at: 2026-10-24T10:00:00Z
+skill: vllm-rocm-pr-review
+---
+```
+
+### 配置报告来源
+
+在 **Settings → AI review reports** 里配置，每行一个来源，字段之间用 `|` 分隔：
+
+```
+标签 | 报告所在仓库 | 报告路径（文件名里包含 {number}） | 这些报告针对哪个仓库的 PR
+ROCm review | shen-shanshan/vllm-dev-skills | skills/vllm-rocm-pr-review/outputs/pr-{number}-review.md | vllm-project/vllm
+```
+
+- 第 4 个字段可以省略，省略时用 Settings 里的默认仓库。
+- 可以配置多个来源，比如再加一行接入 `vllm-pr-summary` 的 `pr-{number}-summary.md`。一个 PR 在多个来源里都有报告时，面板里会按来源分别显示。
+- 删光所有行就关闭这个功能。
+- 这个配置和其他偏好一起，按 GitHub 账号保存在浏览器的 `localStorage` 里。
+
+### 配额与权限
+
+- 每个来源每 10 分钟发一次 REST 请求来列目录，打开报告时再发一到两次（读文件、渲染 markdown），都用 REST 配额，不影响 PR 刷新用的 GraphQL 配额。
+- 报告仓库必须是你的 Token 能读到的。公开仓库没有问题；如果改成私有仓库，只有 Token 有权限的人才能看到报告。

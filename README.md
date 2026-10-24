@@ -25,6 +25,27 @@ Upstream only follows the operating system's light/dark setting. This fork puts 
 - A small inline script in `index.html` applies the theme before the first paint, so a reload never flashes the light theme.
 - The saved board format is unchanged; boards from upstream load as they are.
 
+### AI review reports
+
+Each PR's detail pane gets an **AI Review** panel showing a review report written outside Pingboard. Pingboard is a static page and cannot run an agent, so the workflow is:
+
+1. Run a review skill locally — by default [`vllm-rocm-pr-review`](https://github.com/shen-shanshan/vllm-dev-skills/tree/master/skills/vllm-rocm-pr-review), a Claude Code skill that writes `outputs/pr-<number>-review.md`.
+2. Push the report to its GitHub repository.
+3. Pingboard lists that directory with your token (once every 10 minutes, REST quota) and matches file names to the PRs on your board.
+
+The panel shows the verdict (🔴 Block / ⚠️ Needs work / ✅ LGTM), when the review was written, the summary section, and whether **the PR has new commits since the review**. That comes from front matter at the top of the report (`pr`, `repo`, `head_sha`, `verdict`, `reviewed_at`). Reports without front matter still show, with the verdict read from their 结论 (Verdict) section and the reviewed commit marked unknown. PRs without a report say *No AI review yet*.
+
+**View full report** (or `i`) opens the whole report in a large dialog. GitHub's `/markdown` API renders it, so tables, code and `#123` links look as they do on github.com. Mermaid diagrams are drawn by [mermaid](https://mermaid.js.org/), loaded from a CDN only when a report contains one; if it cannot load, the diagrams stay as source.
+
+Sources are configurable in **Settings → AI review reports**, one per line:
+
+```
+Label | owner/repo | path/with/{number}/in/the/file-name.md | repo of the PRs it reviews
+ROCm review | shen-shanshan/vllm-dev-skills | skills/vllm-rocm-pr-review/outputs/pr-{number}-review.md | vllm-project/vllm
+```
+
+The report repository must be readable by your token. A private repository works too, but then only people whose token can read it see the reports.
+
 ### Chinese documentation
 
 - [`docs/guide_zh.md`](docs/guide_zh.md) — a guide in Chinese: what Pingboard is, how to use it, how it works (PR fetching, CI classification, related/unrelated failure detection, refresh and rate limits), deploying a fork to GitHub Pages, and where the board data lives.

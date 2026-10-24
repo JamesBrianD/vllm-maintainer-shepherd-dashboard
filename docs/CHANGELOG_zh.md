@@ -7,6 +7,17 @@
 
 ---
 
+## 2026-10-24
+
+- **新功能**：PR 详情页新增 **AI Review** 面板和完整报告弹窗。dashboard 用用户的 Token 读取 GitHub 仓库里由 skill 生成的 review 报告（默认是 `shen-shanshan/vllm-dev-skills` 中 `vllm-rocm-pr-review` 的 `outputs/pr-{number}-review.md`），按文件名匹配 PR。
+  - 面板显示结论徽章、review 时间、第 1 节总结，以及“PR 在 review 之后是否有新提交”的提示；没有报告时显示 “No AI review yet”。
+  - 完整报告由 GitHub `/markdown` 接口渲染，插入前再做一次过滤；Mermaid 图只在需要时从 CDN 加载 mermaid 绘制，失败时显示源码。快捷键 `i`。
+  - 报告来源可在 Settings → AI review reports 中配置多个，保存在按账号隔离的偏好设置里（新增 `reviewSources` 字段，看板数据格式不变）。
+  - 兼容没有 front matter 的旧报告：结论从“结论 (Verdict)”一节识别。
+  - 涉及文件：`app.js`、`styles.css`、`README.md`、`AGENTS.md`、`docs/guide_zh.md`
+- **其他**：`vllm-dev-skills` 仓库的 `vllm-rocm-pr-review` skill 改为在报告开头输出 front matter（`pr`、`repo`、`head_sha`、`verdict`、`reviewed_at`、`skill`），并在报告写完后提示推送。这个改动在另一个仓库，这里只做记录。
+  - 涉及文件：`vllm-dev-skills/skills/vllm-rocm-pr-review/SKILL.md`
+
 ## 2026-10-23
 
 - **其他**：新增 `AGENTS.md`，约定 agent 每次新增功能或做用户可见的改动时，同步更新 `README.md` 的 “What this fork adds” 一节和本改动记录（必要时也更新 `docs/guide_zh.md`），并写明项目的其他约定。

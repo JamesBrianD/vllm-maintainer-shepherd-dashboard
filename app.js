@@ -8,6 +8,7 @@
      2. state + persistence
      3. github api
      4. PR model (checks, CI summary, failure evidence)
+     4b. AI reviews (reports from a repo, rendered by GitHub)
      5. refresh scheduler
      6. board operations (pins, groups, cursor)
      7. actions (comments, update branch, labels, review, merge)
@@ -61,6 +62,21 @@ const THEMES = [
   { id: "dark-tritanopia", label: "Dark Tritanopia" }
 ];
 const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+
+/* AI review reports: Markdown files pushed to a GitHub repo, one per PR. `path` names the
+   file for a PR, with {number} in the file name; `prRepo` is the repo whose PRs they review. */
+const DEFAULT_REVIEW_SOURCES = [{
+  label: "ROCm review",
+  repo: "shen-shanshan/vllm-dev-skills",
+  path: "skills/vllm-rocm-pr-review/outputs/pr-{number}-review.md",
+  prRepo: "vllm-project/vllm"
+}];
+const REVIEW_VERDICTS = {
+  block: { text: "🔴 Block", tone: "bad" },
+  "needs-work": { text: "⚠️ Needs work", tone: "warn" },
+  lgtm: { text: "✅ LGTM", tone: "good" }
+};
+const MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
 
 const GENERIC_PROFILE = { ciPrefix: null, mainPipeline: null, ciCommands: null, quickLabels: [], mergeMethod: "squash" };
 
@@ -164,13 +180,15 @@ const state = {
   authError: "",
 
   board: { groups: [], pins: [] },   // pins: [{key, repo, number, group, addedAt, seen}]
-  prefs: { interval: 60, notify: false, defaultRepo: DEFAULT_REPO, boardWidth: BOARD_WIDTH, following: [] },
+  prefs: { interval: 60, notify: false, defaultRepo: DEFAULT_REPO, boardWidth: BOARD_WIDTH, following: [], reviewSources: [] },
 
   data: new Map(),        // pin key -> PR model
   status: new Map(),      // pin key -> {at, loading, error}
   baselines: new Map(),   // "repo@branch" -> {at, total, counts: Map(jobKey -> commits failing)}
   commitFailures: new Map(), // "repo@oid" -> {hasCI, failed: [jobKey]} for finished base commits
   labels: new Map(),      // repo -> {at, items: [{name, color}]}
+  reviewIndex: new Map(), // review source key -> {at, files: Map(PR number -> {path, sha, url}) | null, error}
+  reviewDocs: new Map(),  // file sha -> {status, promise, review, error}
 
   cursor: null,
   filter: "all",
@@ -194,7 +212,8 @@ function loadUserState() {
     notify: Boolean(prefs.notify),
     boardWidth: Number(prefs.boardWidth) || BOARD_WIDTH,
     defaultRepo: /^[\w.-]+\/[\w.-]+$/.test(prefs.defaultRepo || "") ? prefs.defaultRepo : DEFAULT_REPO,
-    following: parseLogins(Array.isArray(prefs.following) ? prefs.following.join(" ") : "")
+    following: parseLogins(Array.isArray(prefs.following) ? prefs.following.join(" ") : ""),
+    reviewSources: cleanSources(prefs.reviewSources) || DEFAULT_REVIEW_SOURCES.map((source) => ({ ...source }))
   };
 
   state.board = cleanBoard(store.get(scopedKey("board"), null)) || { groups: [{ id: "g1", name: "Tracking", collapsed: false }], pins: [] };
@@ -360,14 +379,16 @@ function authHeaders() {
   };
 }
 
-async function rest(method, path, body) {
+/* `raw` returns the body as text: file contents, or HTML from /markdown. */
+async function rest(method, path, body, { raw = false } = {}) {
   const response = await fetch(`${API_ROOT}${path}`, {
     method,
-    headers: { ...authHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: { ...authHeaders(), ...(raw ? { Accept: "application/vnd.github.raw+json" } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined
   });
   if (response.status === 401) signOut("GitHub rejected the token.");
   const text = await response.text();
+  if (raw && response.ok) return text;
   let json = null;
   try {
     json = text ? JSON.parse(text) : null;
@@ -737,6 +758,196 @@ async function loadLabels(repo) {
   return items;
 }
 
+/* ── 4b. AI reviews ────────────────────────────────────────────────────── */
+
+/* Reports are written outside Pingboard (e.g. by a Claude Code skill) and pushed to a repo;
+   the board lists that directory, matches file names to PR numbers and shows the report. */
+
+function cleanSource(raw) {
+  if (!raw || typeof raw.label !== "string" || !raw.label.trim()) return null;
+  if (!/^[\w.-]+\/[\w.-]+$/.test(raw.repo || "") || !/^[\w.-]+\/[\w.-]+$/.test(raw.prRepo || "")) return null;
+  // {number} exactly once, in the file name
+  if (typeof raw.path !== "string" || !/^([^{}]*\/)?[^{}/]*\{number\}[^{}/]*$/.test(raw.path.trim())) return null;
+  return { label: raw.label.trim(), repo: raw.repo, path: raw.path.trim().replace(/^\/+/, ""), prRepo: raw.prRepo };
+}
+
+function cleanSources(raw) {
+  return Array.isArray(raw) ? raw.map(cleanSource).filter(Boolean) : null;
+}
+
+function sourceKey(source) {
+  return `${source.repo}:${source.path}`;
+}
+
+function sourceDir(source) {
+  return source.path.slice(0, Math.max(0, source.path.lastIndexOf("/")));
+}
+
+function encodePath(path) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function reviewSourcesFor(pr) {
+  return state.prefs.reviewSources.filter((source) => source.prRepo === pr.repo);
+}
+
+async function refreshReviewIndex(source) {
+  const key = sourceKey(source);
+  const name = source.path.slice(source.path.lastIndexOf("/") + 1);
+  const [before, after] = name.split("{number}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`^${before}(\\d+)${after}$`);
+  try {
+    const listing = await rest("GET", `/repos/${source.repo}/contents/${encodePath(sourceDir(source))}`);
+    if (!Array.isArray(listing)) throw new Error(`${sourceDir(source) || "the path"} is not a directory`);
+    const files = new Map();
+    for (const item of listing) {
+      const match = item.type === "file" && item.name.match(pattern);
+      if (match) files.set(Number(match[1]), { path: item.path, sha: item.sha, url: safeUrl(item.html_url) });
+    }
+    state.reviewIndex.set(key, { at: Date.now(), files, error: null });
+  } catch (error) {
+    // Keep showing the last good listing; the panel says it could not be refreshed.
+    state.reviewIndex.set(key, { at: Date.now(), files: state.reviewIndex.get(key)?.files || null, error: error.message });
+  }
+}
+
+const reviewIndexInFlight = new Set();
+function refreshReviewIndexes(force = false) {
+  for (const source of state.prefs.reviewSources) {
+    const key = sourceKey(source);
+    if (reviewIndexInFlight.has(key) || !state.board.pins.some((pin) => pin.repo === source.prRepo)) continue;
+    if (!force && Date.now() - (state.reviewIndex.get(key)?.at || 0) <= BASELINE_TTL_MS) continue;
+    reviewIndexInFlight.add(key);
+    refreshReviewIndex(source).finally(() => {
+      reviewIndexInFlight.delete(key);
+      render();
+    });
+  }
+}
+
+/* Fetch and parse one report; cached by blob sha, so a changed file is fetched again. */
+function loadReview(source, file, { force = false } = {}) {
+  const cached = state.reviewDocs.get(file.sha);
+  if (cached && !force && cached.status !== "error") return cached.promise;
+  const doc = { status: "loading" };
+  doc.promise = rest("GET", `/repos/${source.repo}/contents/${encodePath(file.path)}`, null, { raw: true })
+    .then((text) => {
+      doc.status = "ready";
+      doc.review = parseReview(text);
+      return doc.review;
+    })
+    .catch((error) => {
+      doc.status = "error";
+      doc.error = error.message;
+      throw error;
+    })
+    .finally(render);
+  doc.promise.catch(() => {});
+  state.reviewDocs.set(file.sha, doc);
+  return doc.promise;
+}
+
+/* Front matter (plain `key: value` lines between --- fences) is optional: older reports
+   have none, so the verdict falls back to the "结论 (Verdict)" section. */
+function parseReview(text) {
+  const meta = {};
+  let body = text.replace(/^\uFEFF/, "");
+  const front = body.match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/);
+  if (front) {
+    for (const line of front[1].split(/\r?\n/)) {
+      const match = line.match(/^([\w-]+):\s*(.*?)\s*$/);
+      if (match) meta[match[1]] = match[2].replace(/^(["'])(.*)\1$/, "$2");
+    }
+    body = body.slice(front[0].length);
+  }
+  const lines = body.split(/\r?\n/);
+  const section = (heading) => {
+    const start = lines.findIndex((line) => /^##\s/.test(line) && heading.test(line));
+    if (start < 0) return "";
+    const rest_ = lines.slice(start + 1);
+    const end = rest_.findIndex((line) => /^(##\s|---\s*$)/.test(line));
+    return (end < 0 ? rest_ : rest_.slice(0, end)).join("\n");
+  };
+  let verdict = REVIEW_VERDICTS[meta.verdict] ? meta.verdict : null;
+  if (!verdict) {
+    const said = section(/结论|Verdict/i).match(/BLOCK|NEEDS[ -]WORK|LGTM/i)?.[0].toUpperCase().replace(" ", "-");
+    verdict = { BLOCK: "block", "NEEDS-WORK": "needs-work", LGTM: "lgtm" }[said] || null;
+  }
+  const summary = markdownText(section(/^##\s+1\./));
+  return {
+    meta,
+    body,
+    verdict,
+    title: lines.find((line) => /^#\s/.test(line))?.replace(/^#\s+/, "") || "",
+    summary: summary.length > 600 ? `${summary.slice(0, 600)}…` : summary
+  };
+}
+
+/* Markdown to one line of plain text, for the summary in the detail pane. */
+function markdownText(markdown) {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*|__|`|^\s*[>#]+|\|/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* Rendered by GitHub (/markdown), which already strips scripts; this pass is belt and braces. */
+function reportNodes(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script, style, iframe, object, embed, form, link, meta, base").forEach((node) => node.remove());
+  // Mermaid blocks come wrapped in github.com's viewer markup; keep only the source.
+  for (const pre of doc.querySelectorAll('pre[lang="mermaid"]')) {
+    const block = doc.createElement("pre");
+    block.className = "mermaid-src";
+    block.textContent = pre.textContent;
+    (pre.closest('section[data-type="mermaid"]') || pre).replaceWith(block);
+  }
+  for (const node of doc.body.querySelectorAll("*")) {
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || name === "style") node.removeAttribute(attr.name);
+      else if (["href", "src", "xlink:href", "action", "formaction"].includes(name) && !/^(https?:|#)/i.test(attr.value.trim())) node.removeAttribute(attr.name);
+    }
+    if (node.tagName === "A" && /^https?:/i.test(node.getAttribute("href") || "")) {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener");
+    }
+  }
+  return [...doc.body.childNodes];
+}
+
+/* Mermaid is the one thing loaded from a CDN, and only once a report has a diagram.
+   If it cannot load, the diagrams stay as source. */
+let mermaidLoad = null;
+async function renderDiagrams(container) {
+  const blocks = [...container.querySelectorAll("pre.mermaid-src")];
+  if (!blocks.length) return;
+  let mermaid;
+  try {
+    mermaidLoad ||= import(MERMAID_URL).then((module) => module.default);
+    mermaid = await mermaidLoad;
+  } catch {
+    mermaidLoad = null;
+    blocks[0].before(el("div", { class: "muted small", text: "Diagrams are shown as source: mermaid could not be loaded." }));
+    return;
+  }
+  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: document.documentElement.dataset.theme?.startsWith("dark") ? "dark" : "default" });
+  for (const block of blocks) {
+    const id = `pb-mermaid-${(state.seq += 1)}`;
+    try {
+      const { svg } = await mermaid.render(id, block.textContent);
+      const figure = el("div", { class: "mermaid-figure" });
+      figure.innerHTML = svg;
+      block.replaceWith(figure);
+    } catch (error) {
+      document.getElementById(`d${id}`)?.remove();   // mermaid leaves its error graphic in <body>
+      block.after(el("div", { class: "muted small", text: `This diagram could not be drawn: ${String(error?.message || error).split("\n")[0]}` }));
+    }
+  }
+}
+
 /* ── 5. refresh scheduler ──────────────────────────────────────────────── */
 
 const refreshQueue = [];
@@ -839,6 +1050,7 @@ function tick() {
       if (!status?.at || now - status.at >= ttl) queueRefresh(pin);
     }
     refreshBaselines();
+    refreshReviewIndexes();
   }
   render();
 }
@@ -846,6 +1058,7 @@ function tick() {
 function refreshAll() {
   for (const pin of state.board.pins) queueRefresh(pin, { force: true });
   state.baselines.clear();
+  refreshReviewIndexes(true);
 }
 
 /* After an action: re-read the PR once GitHub has had a moment. Takes a key so a
@@ -1869,6 +2082,10 @@ function renderDetail(index) {
     comments.push(section);
   }
 
+  // With the side column on open PRs; above the comments once there is none.
+  const review = reviewPanel(pr);
+  if (review) (open ? side.unshift(review) : comments.unshift(review));
+
   if (primary.length) {
     blocks.push(el("div", { class: "detail-body" }, [
       el("div", { class: "detail-col" }, primary),
@@ -1883,6 +2100,62 @@ function renderDetail(index) {
 
 function panel(title, children) {
   return el("section", { class: "panel" }, [el("h3", { text: title }), ...children]);
+}
+
+function reviewPanel(pr) {
+  const sources = reviewSourcesFor(pr);
+  if (!sources.length) return null;
+  return panel("AI Review", sources.flatMap((source) => reviewBlock(pr, source, sources.length > 1)));
+}
+
+/* Built from cached data only: the detail pane is rebuilt on every refresh. */
+function reviewBlock(pr, source, labelled) {
+  const heading = labelled ? el("h4", { class: "review-source", text: source.label }) : null;
+  const index = state.reviewIndex.get(sourceKey(source));
+  const where = el("a", { href: `https://github.com/${source.repo}/tree/HEAD/${encodePath(sourceDir(source))}`, target: "_blank", rel: "noopener", text: source.repo });
+  const failed = index?.error ? el("div", { class: "small" }, [
+    el("span", { class: "t-bad", text: `Could not check ${source.repo}: ${index.error} ` }),
+    el("button", { class: "link-btn", onclick: () => refreshReviewIndexes(true), text: "Retry" })
+  ]) : null;
+  if (!index?.files) return [heading, failed || el("div", { class: "muted", text: "Checking for AI reviews…" })];
+
+  const file = index.files.get(pr.number);
+  if (!file) return [heading, el("div", { class: "muted" }, ["No AI review yet · reports come from ", where]), failed];
+
+  loadReview(source, file);
+  const doc = state.reviewDocs.get(file.sha);
+  const links = el("div", { class: "btn-row" }, [
+    el("button", { class: "btn", onclick: () => openReview(pr, source), title: "Read the whole report (i)", text: "View full report" }),
+    file.url ? el("button", { class: "btn", onclick: () => openUrl(file.url), text: "Open on GitHub ↗" }) : null
+  ]);
+  if (doc.status === "loading") return [heading, el("div", { class: "muted", text: "Loading the report…" })];
+  if (doc.status === "error") {
+    return [heading, el("div", { class: "small" }, [
+      el("span", { class: "t-bad", text: `Could not load the report: ${doc.error} ` }),
+      el("button", { class: "link-btn", onclick: () => loadReview(source, file, { force: true }), text: "Retry" })
+    ])];
+  }
+  const review = doc.review;
+  return [heading, ...reviewFacts(pr, review), review.summary ? el("p", { class: "review-summary", text: review.summary }) : null, links, failed];
+}
+
+/* Verdict, age, and whether the PR moved on since the review. */
+function reviewFacts(pr, review) {
+  const verdict = REVIEW_VERDICTS[review.verdict];
+  const reviewedAt = Date.parse(review.meta.reviewed_at);
+  const sha = /^[0-9a-f]{7,40}$/i.test(review.meta.head_sha || "") ? review.meta.head_sha.toLowerCase() : null;
+  let freshness;
+  if (!sha) freshness = el("div", { class: "muted small", text: "Reviewed commit unknown — it may predate the latest push." });
+  else if (pr.headOid && !pr.headOid.startsWith(sha) && !sha.startsWith(pr.headOid)) {
+    freshness = el("div", { class: "t-warn small", text: `PR has new commits since this review (reviewed ${sha.slice(0, 7)}, now ${pr.headOid.slice(0, 7)}).` });
+  } else freshness = el("div", { class: "t-good small", text: "Covers the latest commit." });
+  return [
+    el("div", { class: "review-head" }, [
+      el("span", { class: `review-verdict t-${verdict?.tone || "quiet"}`, text: verdict?.text || "No verdict" }),
+      Number.isNaN(reviewedAt) ? null : el("span", { class: "muted small", text: `reviewed ${ago(reviewedAt)} ago` })
+    ]),
+    freshness
+  ];
 }
 
 function reviewSentence(pr) {
@@ -2347,6 +2620,13 @@ function openSettings() {
   const interval = el("select", {}, [30, 60, 120, 300].map((seconds) => el("option", { value: seconds, selected: seconds === state.prefs.interval, text: seconds < 60 ? `${seconds} seconds` : `${seconds / 60} minute${seconds > 60 ? "s" : ""}` })));
   const notify = el("input", { type: "checkbox", checked: state.prefs.notify });
   const following = el("input", { type: "text", value: state.prefs.following.join(" "), placeholder: "usernames, separated by spaces", spellcheck: "false", onkeydown: (event) => event.key === "Enter" && save() });
+  const sources = el("textarea", {
+    class: "sources-input",
+    rows: 3,
+    spellcheck: "false",
+    placeholder: "Label | owner/repo | path/to/pr-{number}.md | owner/repo of the PRs",
+    text: state.prefs.reviewSources.map((source) => [source.label, source.repo, source.path, source.prRepo].join(" | ")).join("\n")
+  });
   const file = el("input", {
     type: "file",
     accept: "application/json,.json",
@@ -2356,6 +2636,14 @@ function openSettings() {
   const save = async () => {
     const repo = repoInput.value.trim();
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return toast("Default repository must look like owner/name", "error");
+    const reviewSources = [];
+    for (const line of sources.value.split("\n").map((item) => item.trim()).filter(Boolean)) {
+      const [label, sourceRepo, path, prRepo = repo] = line.split("|").map((part) => part.trim());
+      const source = cleanSource({ label, repo: sourceRepo, path, prRepo });
+      if (!source) return toast(`AI review source not understood: ${line}`, "error");
+      reviewSources.push(source);
+    }
+    state.prefs.reviewSources = reviewSources;
     state.prefs.defaultRepo = repo;
     state.prefs.interval = Number(interval.value);
     state.prefs.notify = notify.checked;
@@ -2366,6 +2654,7 @@ function openSettings() {
     }
     persistPrefs();
     closeModal();
+    refreshReviewIndexes();
   };
   mountModal({}, el("div", { class: "modal small" }, [
     el("h2", { text: `Settings · ${state.user.login}` }),
@@ -2375,6 +2664,8 @@ function openSettings() {
     el("label", { class: "check-row" }, [notify, "Browser notification when CI finishes"]),
     el("label", { class: "field" }, ["Following", following]),
     el("p", { class: "muted small", text: "Their names are highlighted, and Add PRs gets a Following list." }),
+    el("label", { class: "field" }, ["AI review reports", sources]),
+    el("p", { class: "muted small", text: "One source per line: Label | owner/repo | path with {number} in the file name | repo of the PRs it reviews (default: the default repository). Reports are read with your token and shown under AI Review in the PR detail." }),
     el("div", { class: "field" }, [
       "Board backup",
       el("div", { class: "choices" }, [
@@ -2401,6 +2692,49 @@ function openSettings() {
   ]));
 }
 
+/* The full report, rendered by GitHub. Mounted once, so refreshes do not reset the scroll. */
+function openReview(pr = cursorPR(), source = null) {
+  if (!pr) return;
+  const found = reviewSourcesFor(pr)
+    .map((item) => ({ source: item, file: state.reviewIndex.get(sourceKey(item))?.files?.get(pr.number) }))
+    .filter((item) => item.file);
+  const target = found.find((item) => item.source === source) || found[0];
+  if (!target) return toast(`No AI review for ${shortRef(pr.repo, pr.number)} yet`);
+  const { file } = target;
+  const facts = el("div", { class: "report-facts" });
+  const body = el("div", { class: "report-body" }, [el("p", { class: "muted", text: "Loading the report…" })]);
+  const load = async (force = false) => {
+    body.replaceChildren(el("p", { class: "muted", text: "Loading the report…" }));
+    try {
+      const review = await loadReview(target.source, file, { force });
+      if (force) review.html = null;
+      facts.replaceChildren(...reviewFacts(pr, review));
+      review.html ||= await rest("POST", "/markdown", { text: review.body, mode: "gfm", context: pr.repo }, { raw: true });
+      if (!body.isConnected) return;
+      body.replaceChildren(...reportNodes(review.html));
+      renderDiagrams(body);
+    } catch (error) {
+      body.replaceChildren(el("p", { class: "t-bad", text: `Could not load the report: ${error.message}` }));
+    }
+  };
+  mountModal({}, el("div", { class: "modal report" }, [
+    el("div", { class: "report-top" }, [
+      el("h2", { text: `${target.source.label} · ${shortRef(pr.repo, pr.number)}` }),
+      facts
+    ]),
+    body,
+    el("div", { class: "modal-foot" }, [
+      el("span", { class: "muted small", text: `${target.source.repo} · ${file.path}` }),
+      el("div", { class: "choices" }, [
+        file.url ? el("button", { class: "btn", onclick: () => openUrl(file.url), text: "Open on GitHub ↗" }) : null,
+        el("button", { class: "btn", onclick: () => load(true), text: "Reload" }),
+        el("button", { class: "btn", onclick: closeModal, text: "Close" })
+      ])
+    ])
+  ]));
+  load();
+}
+
 const HELP = [
   ["j / k", "move down / up"],
   ["shift+j / shift+k", "reorder within the group"],
@@ -2416,6 +2750,7 @@ const HELP = [
   ["y / v", "toggle ready / verified"],
   ["shift+a", "approve"],
   ["shift+m", "merge or auto-merge"],
+  ["i", "read the AI review report"],
   ["z", "undo a comment or branch update before it is sent"],
   ["1 – 6", "filter: all · failing · running · green · no CI · closed"],
   ["/", "filter by text"],
@@ -2458,6 +2793,7 @@ const KEYS = {
   v: () => quickLabel(1),
   A: () => approve(),
   M: () => mergeMenu(),
+  i: () => openReview(),
   z: undoPending,
   ".": () => cursorPin() && queueRefresh(cursorPin(), { force: true }),
   R: refreshAll,

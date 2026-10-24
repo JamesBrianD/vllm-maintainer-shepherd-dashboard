@@ -21,7 +21,7 @@ Pure refactors with no visible effect only need a changelog entry.
 
 ## Other conventions
 
-- No build step and no dependencies: plain `index.html`, `app.js`, `styles.css`. Keep it that way.
+- No build step and no dependencies: plain `index.html`, `app.js`, `styles.css`. Keep it that way. The one exception is mermaid, imported from a CDN only when an AI review report contains a diagram.
 - Match the surrounding code: `app.js` is organised in numbered sections (see the header comment); put new code in the matching section.
 - Colours go through the CSS variables at the top of `styles.css`; every theme (`:root[data-theme=…]`) must keep working.
 - Don't break saved boards. Board and prefs live in `localStorage` under `pingboard.v3.<login>.*`. If the format must change, migrate the old format on load and add a fixture under `tests/fixtures/`.
