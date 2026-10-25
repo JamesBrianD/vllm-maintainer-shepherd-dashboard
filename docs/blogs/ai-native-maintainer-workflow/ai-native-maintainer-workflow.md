@@ -53,7 +53,7 @@
 
 ### 3.2 失败到底跟这个 PR 有没有关系？
 
-盯 CI 时最耗时间的，往往是判断"这个红色的 Job 是 PR 自己引入的，还是 Main 上本来就挂着的 Flaky 用例"。Pingboard 在这一点上做得很巧妙：由于静态页面读不到 Buildkite 的日志，它只用 GitHub 上已有的信息来判断。
+盯 CI 时最耗时间的，往往是判断“这个红色的 Job 是 PR 自己引入的，还是 Main 上本来就挂着的 Flaky 用例”。Pingboard 在这一点上做得很巧妙：由于静态页面读不到 Buildkite 的日志，它只用 GitHub 上已有的信息来判断。
 
 - **`N/M on base`**：扫描 Base 分支最近 30 个跑过 CI 的 Commit，统计同一个 Job 失败了几次。比如 `3/20 on base` 表示这个 Job 在最近 20 个跑完 CI 的 Main Commit 上失败过 3 次；
 - **`also #123 #456`**：同一个 Job 在看板上其他 PR 里也在失败。
@@ -98,11 +98,13 @@ Update Branch、Approve、`/ci run`、`/ci retry`、打 Label、Merge 都是看�
 
 对我来说，这份报告最大的价值是降低理解成本。面对一个不熟悉模块的 PR，我不再需要从零开始读代码，而是先看 Part A：这个 PR 解决什么问题、改了哪些模块、涉及哪些背景知识（如：MLA、PD 分离、MoE 量化、CUDA Graph）。在此基础上再去读 Diff，Review 意见会准确很多。
 
-另一方面，AI 有时能发现人工 Review 很容易漏掉的细节，比如重复的代码、遗漏的分支逻辑、与实现不一致的注释等。当然，报告中的结论我不会直接照搬：哪些问题真的值得提、哪些是 AI 的误判，仍然需要结合我自己对代码和社区讨论的了解来判断。
+另一方面，AI 有时能发现人工 Review 很容易漏掉的细节，比如重复的代码、遗漏的分支逻辑、与实现不一致的注释等。
+
+**当然，报告中的结论我不会直接照搬：哪些问题真的值得提、哪些是 AI 的误判，仍然需要结合我自己对代码和社区讨论的了解来判断。**
 
 ## 五、把 AI 报告接入看板
 
-到此为止，看板负责"管 PR"，Skill 负责"读懂 PR"，两者还是割裂的：报告生成在另一个仓库里，我得自己去找。最后一步就是把报告接进看板。
+到此为止，看板负责“管 PR”，Skill 负责“读懂 PR”，两者还是割裂的：报告生成在另一个仓库里，我得自己去找。最后一步就是把报告接进看板。
 
 ### 5.1 为什么用 Git 仓库来传递报告
 
@@ -141,7 +143,7 @@ Pingboard 是纯静态页面，无法调用 Agent 去执行 Skill；而 Skill �
 
 ## 六、效果
 
-这套工作流对我最直接的影响是 Review 的吞吐量。刚成为 Maintainer 的第一个月，我只 Review 了 10 个左右的 PR，效率很低（当然那段时间本职工作也很忙）。用上这套工作流之后，每个月能 Review 30～80 个 PR 不等，到目前为止累计 Review 了 130 多个 PR。
+这套工作流对我最直接的影响是 Review 的数量。刚成为 Maintainer 的第一个月，我只 Review 了 10 个左右的 PR，效率很低（当然那段时间本职工作也很忙）。用上这套工作流之后，每个月能 Review 40～80 个 PR 不等。
 
 在管理上，变化同样明显：所有 PR 都集中在一个页面里统一管理、监控进度，我不再担心漏掉哪个同事的 PR，也不用打开一堆网页去逐个检查 CI 是否报错、是否跑完、能不能合入。
 
@@ -151,7 +153,9 @@ Pingboard 是纯静态页面，无法调用 Agent 去执行 Skill；而 Skill �
 
 本文介绍了我作为 vLLM Maintainer 的 AI-Native PR 工作流：用 Pingboard 看板集中管理所有待处理的 PR，并直接在看板上完成同步分支、Approve、触发 CI、合入等操作；用 `vllm-rocm-pr-review` Skill 生成 PR 的总结和 ROCm Review 报告，降低理解陌生模块的成本；最后通过 Git 仓库加 Front Matter 的方式，把 AI 报告接进看板，并借助 `head_sha` 判断报告是否过期。
 
-这套方案的核心思路是：让 AI 负责"读懂 PR"和"整理信息"，让看板负责"不遗漏、少切换"，而 Review 的判断仍然留给人。如果你也在维护一个 PR 量很大的开源项目，可以直接 Fork 看板，再按自己的领域写一个 Review Skill，把两者接起来。
+这套方案的核心思路是：**让 AI 负责“读懂 PR”和“整理信息”，让看板负责“不遗漏、少切换”，而 Review 的判断仍然留给人。**
+
+如果你也在维护一个 PR 量很大的开源项目，可以直接 Fork 看板，再按自己的领域写一个 Review Skill，把两者接起来。
 
 本文用到的 `vllm-rocm-pr-review` 只是 [`vllm-dev-skills`](https://github.com/shen-shanshan/vllm-dev-skills) 中的一个。这个仓库收录了我在 vLLM 开发中沉淀下来的十多个 Claude Code Skill，覆盖了从找活、读代码、设计方案、提交 PR，到性能分析、Code Review、Issue 整理和技术写作的整个开发流程，如：生成 vLLM 特性或模型的源码解读教程、分析某个模块中可以贡献的 Task、生成 vLLM 风格的 PR 描述和 RFC、对比优化前后的 Benchmark 结果等。每个 Skill 都附有 Prompt 示例和真实的输出样例，可以直接拿来用，也可以照着改成适合自己项目的版本。如果它对你有帮助，欢迎 Star 或 Fork，也欢迎关注我的 [GitHub](https://github.com/shen-shanshan)，后续新的 Skill 和实践都会更新在那里。
 
@@ -159,11 +163,7 @@ Pingboard 是纯静态页面，无法调用 Agent 去执行 Skill；而 Skill �
 
 ## 八、参考资料
 
-- Pingboard（上游项目）：[`mgoin/pingboard`](https://github.com/mgoin/pingboard)
-- 本文的看板 Fork：[`shen-shanshan/vllm-maintainer-shepherd-dashboard`](https://github.com/shen-shanshan/vllm-maintainer-shepherd-dashboard)
-- 看板在线地址：[`shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard`](https://shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard/)
-- Dev Skills 仓库：[`shen-shanshan/vllm-dev-skills`](https://github.com/shen-shanshan/vllm-dev-skills)
-- `vllm-rocm-pr-review` Skill：[`skills/vllm-rocm-pr-review`](https://github.com/shen-shanshan/vllm-dev-skills/tree/master/skills/vllm-rocm-pr-review)
-- GitHub REST API：[Repository Contents](https://docs.github.com/en/rest/repos/contents)
-- GitHub REST API：[Markdown](https://docs.github.com/en/rest/markdown/markdown)
-- Mermaid：[Mermaid.js](https://mermaid.js.org/)
+- Pingboard：[mgoin/pingboard](https://github.com/mgoin/pingboard)
+- 本文的看板 Fork：[shen-shanshan/vllm-maintainer-shepherd-dashboard](https://github.com/shen-shanshan/vllm-maintainer-shepherd-dashboard)
+- 看板在线地址：[shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard](https://shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard/)
+- Dev Skills 仓库：[shen-shanshan/vllm-dev-skills](https://github.com/shen-shanshan/vllm-dev-skills)
