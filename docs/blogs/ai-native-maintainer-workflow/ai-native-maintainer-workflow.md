@@ -1,8 +1,8 @@
-# vLLM 开源协作｜我的 AI-Native Maintainer 工作流
+# vLLM 社区维护｜我的 AI-Native Maintainer 工作流
 
 ## 一、引言
 
-我是 AMD ROCm 团队在 vLLM 社区的 Maintainer 之一，日常工作中很大一部分时间花在处理同事和社区开发者提交的 PR 上：理解改动、给出 Review 意见、触发 CI、盯 CI 结果、最后合入。
+作为 AMD ROCm 团队在 vLLM 社区的 Maintainer 之一，我的日常工作中很大一部分时间花在处理同事和社区开发者提交的 PR 上：理解改动、给出 Review 意见、触发 CI、盯 CI 结果、最后合入。
 
 成为 Maintainer 之前，我只负责社区里的少数几个模块，如：Encoder CUDA Graph 特性、多硬件后端的兼容性和可移植性等。成为 Maintainer 之后，所有 AMD 同事提交的 PR 都需要我来 Review，这带来了两个很现实的问题：
 
@@ -35,7 +35,7 @@
 
 看板基于 [mgoin/pingboard](https://github.com/mgoin/pingboard) 改造而来，我 fork 了一份并部署在 [GitHub Pages](https://shen-shanshan.github.io/vllm-maintainer-shepherd-dashboard/) 上。它是一个纯静态页面：没有后端，也不需要构建，浏览器拿着用户自己的 GitHub Token 直接调用 GitHub API。这意味着部署成本几乎为零，任何人 fork 一下就能拥有自己的看板。
 
-![图：Pingboard 看板界面（截图来自上游项目 README）](https://github.com/user-attachments/assets/458d4cbf-d81b-4962-937f-36c99a792ed9)
+![图：Pingboard 看板界面（截图来自上游项目 README）](./images/dashboard-1.png)
 
 看板上每个 PR 占一行，用一句话直接告诉你它现在处于什么状态、下一步该做什么：
 
@@ -66,9 +66,13 @@ Update Branch、Approve、`/ci run`、`/ci retry`、打 label、Merge 都是看�
 
 在 fork 版本中，我又陆续加了几个功能：
 
-- **主题切换**：参照 GitHub 的 Appearance 设置，支持 Light、Dark、Dark dimmed（soft dark）、高对比和色盲友好等 10 种主题。
-- **AI Review 面板**：在 PR 详情页展示 skill 生成的报告，这是第五节的主角。
-- **文档约定**：仓库里放了一份 `AGENTS.md`，要求 Agent 每次新增功能时同步更新 README 的 "What this fork adds" 一节和中文 changelog。fork 之后新增的这些功能基本都是我和 Claude Code 一起完成的，这份约定可以保证文档不会落后于代码。
+**（1）主题切换**：参照 GitHub 的 Appearance 设置，支持 Light、Dark、Dark dimmed（soft dark）、高对比和色盲友好等 10 种主题。
+
+![](./images/dashboard-4.png)
+
+**（2）AI Review 面板**：在 PR 详情页展示 skill 生成的报告，这是第五节的主角。
+
+![](./images/dashboard-2.png)
 
 ## 四、用 vllm-rocm-pr-review 做 AI Review
 
