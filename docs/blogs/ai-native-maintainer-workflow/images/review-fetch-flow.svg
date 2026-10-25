@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1240" height="440" viewBox="0 0 1240 440">
-<rect width="1240" height="440" fill="#ffffff"/>
+<rect width="1240" height="440" rx="12" fill="#f3f6fb"/>
 <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#64748b"/></marker><marker id="arrowAccent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8z" fill="#2563eb"/></marker></defs>
-<style>text{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif;fill:#1f2937;font-size:15px}.title{font-size:21px;font-weight:600}.node{fill:#eff6ff;stroke:#2563eb;stroke-width:1.5}.neutral{fill:#f8fafc;stroke:#64748b;stroke-width:1.5}.warn{fill:#fffbeb;stroke:#b45309;stroke-width:1.5}.edge{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arrow)}.edgeA{stroke:#2563eb;stroke-width:1.5;fill:none;marker-end:url(#arrowAccent)}.note{font-size:13px;fill:#475569}.num{font-size:12px;fill:#ffffff;font-weight:600}</style>
+<style>text{font-family:"Comic Sans MS","Comic Sans","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",cursive;fill:#1f2937;font-size:15px}.title{font-size:21px;font-weight:600}.node{fill:#eff6ff;stroke:#2563eb;stroke-width:1.5}.neutral{fill:#ffffff;stroke:#64748b;stroke-width:1.5}.warn{fill:#fffbeb;stroke:#b45309;stroke-width:1.5}.edge{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arrow)}.edgeA{stroke:#2563eb;stroke-width:1.5;fill:none;marker-end:url(#arrowAccent)}.note{font-size:13px;fill:#475569}.num{font-size:12px;fill:#ffffff;font-weight:600}</style>
 <text x="40" y="40" class="title">Pingboard 如何读取并展示 AI Review 报告</text>
 <rect x="40" y="165" width="180" height="62" rx="8" class="neutral"/>
 <text x="130.0" y="192.0" text-anchor="middle"><tspan x="130.0" dy="0">列出报告目录</tspan><tspan x="130.0" dy="18">每 10 分钟一次</tspan></text>
