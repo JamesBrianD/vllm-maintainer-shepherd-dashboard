@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant me as 我
+    participant board as Pingboard
+    participant agent as Claude Code + skill
+    participant gh as GitHub
+    me->>board: 钉住 PR，按优先级分组
+    me->>agent: review vllm PR #N
+    agent->>gh: 拉取 PR 数据（fetch_pr_data.py）
+    agent->>gh: 推送报告到 vllm-dev-skills
+    board->>gh: 列出报告目录、读取报告（每 10 分钟）
+    me->>board: 阅读 AI 报告，结合经验给出 review 意见
+    board->>gh: Update branch / Approve / /ci run / Merge

@@ -7,6 +7,11 @@
 
 ---
 
+## 2026-10-25
+
+- **文档**：新增中文技术博客《vLLM 开源协作｜我的 AI-Native Maintainer 工作流》，介绍用 Pingboard 看板管理 PR、用 `vllm-rocm-pr-review` skill 生成 AI Review 报告，以及看板如何读取和展示报告；配两张流程图（附 Mermaid 源文件）。
+  - 涉及文件：`docs/blogs/ai-native-maintainer-workflow/`、`README.md`
+
 ## 2026-10-24
 
 - **新功能**：PR 详情页新增 **AI Review** 面板和完整报告弹窗。dashboard 用用户的 Token 读取 GitHub 仓库里由 skill 生成的 review 报告（默认是 `shen-shanshan/vllm-dev-skills` 中 `vllm-rocm-pr-review` 的 `outputs/pr-{number}-review.md`），按文件名匹配 PR。

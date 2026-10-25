@@ -49,6 +49,7 @@ The report repository must be readable by your token. A private repository works
 ### Chinese documentation
 
 - [`docs/guide_zh.md`](docs/guide_zh.md) — a guide in Chinese: what Pingboard is, how to use it, how it works (PR fetching, CI classification, related/unrelated failure detection, refresh and rate limits), deploying a fork to GitHub Pages, and where the board data lives.
+- [`docs/blogs/ai-native-maintainer-workflow/`](docs/blogs/ai-native-maintainer-workflow/ai-native-maintainer-workflow.md) — a Chinese blog post on the AI-native maintainer workflow this fork supports: managing PRs on the board, generating reviews with the `vllm-rocm-pr-review` skill, and how the board reads those reports.
 - [`docs/CHANGELOG_zh.md`](docs/CHANGELOG_zh.md) — every change made in this fork since upstream commit `8d08666`, with dates.
 
 ## The board
