@@ -65,12 +65,11 @@ const darkQuery = matchMedia("(prefers-color-scheme: dark)");
 
 /* AI review reports: Markdown files pushed to a GitHub repo, one per PR. `path` names the
    file for a PR, with {number} in the file name; `prRepo` is the repo whose PRs they review. */
-const DEFAULT_REVIEW_SOURCES = [{
-  label: "ROCm review",
-  repo: "shen-shanshan/vllm-dev-skills",
-  path: "skills/vllm-rocm-pr-review/outputs/pr-{number}-review.md",
-  prRepo: "vllm-project/vllm"
-}];
+const DEFAULT_REVIEW_SOURCES = [
+  { label: "omp review", repo: "JamesBrianD/pr-review-reports", path: "outputs/pr-{number}-review.md", prRepo: "sgl-project/sglang-jax" },
+  { label: "omp review", repo: "JamesBrianD/pr-review-reports", path: "outputs/pr-{number}-review.md", prRepo: "vllm-project/vllm-torchtpu" },
+  { label: "omp review", repo: "JamesBrianD/pr-review-reports", path: "outputs/pr-{number}-review.md", prRepo: "sgl-project/sglang-torchtpu" }
+];
 const REVIEW_VERDICTS = {
   block: { text: "🔴 Block", tone: "bad" },
   "needs-work": { text: "⚠️ Needs work", tone: "warn" },
@@ -825,6 +824,46 @@ function refreshReviewIndexes(force = false) {
   }
 }
 
+/* Auto-pinned queues: JSON files ({repo, base, numbers:[...]}) pushed by an external
+   watcher into a reports repo. New PR numbers are pinned into the named group
+   automatically; unpinning a still-queued PR is not sticky — the next sync re-adds it. */
+const AUTO_PIN_QUEUES = [{
+  label: "epic/dsv41",
+  repo: "JamesBrianD/pr-review-reports",
+  path: "queue/epic-dsv41.json",
+  group: "Review Queue"
+}];
+const autoPinInFlight = new Set();
+const autoPinAt = new Map();
+function refreshAutoPinQueues(force = false) {
+  for (const queue of AUTO_PIN_QUEUES) {
+    if (autoPinInFlight.has(queue.path)) continue;
+    if (!force && Date.now() - (autoPinAt.get(queue.path) || 0) <= BASELINE_TTL_MS) continue;
+    autoPinInFlight.add(queue.path);
+    (async () => {
+      const item = await rest("GET", `/repos/${queue.repo}/contents/${encodePath(queue.path)}`);
+      const file = JSON.parse(atob(item.content.replace(/\s/g, "")));
+      if (!Array.isArray(file.numbers) || !file.repo) throw new Error("bad queue file");
+      let group = state.board.groups.find((g) => g.name === queue.group);
+      if (!group) {
+        group = { id: "g" + Date.now().toString(36), name: queue.group, collapsed: false };
+        state.board.groups.push(group);
+      }
+      let added = 0;
+      for (const number of file.numbers) {
+        if (addPin(file.repo, Number(number), group.id)) added += 1;
+      }
+      if (added) toast(`Auto-pinned ${added} PR(s) from ${queue.label} (${file.repo})`, "ok");
+    })().catch(() => {
+      // Queue file unreachable (private repo without access, network): retry next cycle.
+    }).finally(() => {
+      autoPinAt.set(queue.path, Date.now());
+      autoPinInFlight.delete(queue.path);
+      render();
+    });
+  }
+}
+
 /* Fetch and parse one report; cached by blob sha, so a changed file is fetched again. */
 function loadReview(source, file, { force = false } = {}) {
   const cached = state.reviewDocs.get(file.sha);
@@ -1051,6 +1090,7 @@ function tick() {
     }
     refreshBaselines();
     refreshReviewIndexes();
+    refreshAutoPinQueues();
   }
   render();
 }
@@ -1059,6 +1099,7 @@ function refreshAll() {
   for (const pin of state.board.pins) queueRefresh(pin, { force: true });
   state.baselines.clear();
   refreshReviewIndexes(true);
+  refreshAutoPinQueues(true);
 }
 
 /* After an action: re-read the PR once GitHub has had a moment. Takes a key so a
@@ -1892,7 +1933,10 @@ function row(pin, index) {
         el("div", { class: "row-meta", text: `${pin.repo}#${pin.number}` })
       ]),
       el("div", { class: "row-status" }),
-      el("div", { class: "row-actions" }, [unpin])
+      el("div", { class: "row-actions" }, [
+        el("a", { class: "icon-btn", href: `https://github.com/${pin.repo}/pull/${pin.number}`, target: "_blank", rel: "noopener", title: "Open on GitHub ↗", text: "↗" }),
+        unpin
+      ])
     ]);
   }
 
@@ -1920,6 +1964,7 @@ function row(pin, index) {
     ]),
     el("div", { class: "row-actions" }, [
       result.action ? el("button", { class: "btn primary", onclick: stop(result.action.run), text: result.action.label }) : null,
+      el("a", { class: "icon-btn", href: pr.url, target: "_blank", rel: "noopener", title: "Open on GitHub ↗", text: "↗" }),
       unpin
     ])
   ]);
